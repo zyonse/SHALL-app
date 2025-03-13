@@ -10,8 +10,16 @@ import SwiftUI
 @main
 struct SHALLApp: App {
     var body: some Scene {
+        // Tabbed view with main control tab and settings tab
         WindowGroup {
-            ContentView()
+            TabView {
+                Tab("Controls", systemImage: "lightbulb.max") {
+                    ContentView()
+                }
+                Tab("Settings", systemImage: "gear") {
+                    SettingsView()
+                }
+            }
         }
     }
 }
