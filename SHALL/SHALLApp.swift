@@ -14,7 +14,7 @@ struct SHALLApp: App {
         WindowGroup {
             TabView {
                 Tab("Controls", systemImage: "lightbulb.max") {
-                    ContentView()
+                    ControlView()
                 }
                 Tab("Settings", systemImage: "gear") {
                     SettingsView()
