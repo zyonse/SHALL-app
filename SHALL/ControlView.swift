@@ -10,11 +10,10 @@ import SwiftUI
 struct ControlView: View {
     @State private var power: Bool = false
     @State private var brightness: Double = 128
-    @State private var hue: Double = 180
-    @State private var saturation: Double = 128
     @State private var adaptiveMode: Bool = false
     @State private var statusMessage: String = ""
     @State private var ledStatus: LEDStatus?
+    @State private var selectedColor: Color = .white
 
     var body: some View {
         Form {
@@ -25,15 +24,7 @@ struct ControlView: View {
                 Slider(value: $brightness, in: 0...255, step: 1)
             }
             
-            VStack(alignment: .leading) {
-                Text("Hue: \(Int(hue))")
-                Slider(value: $hue, in: 0...359, step: 1)
-            }
-            
-            VStack(alignment: .leading) {
-                Text("Saturation: \(Int(saturation))")
-                Slider(value: $saturation, in: 0...255, step: 1)
-            }
+            ColorPicker("Color", selection: $selectedColor)
             
             Toggle("Adaptive Mode", isOn: $adaptiveMode)
             
@@ -50,7 +41,14 @@ struct ControlView: View {
                     } else {
                         msg += "Brightness update failed. "
                     }
-                    if let color = await NetworkManager.setColor(hue: Int(hue), saturation: Int(saturation)) {
+                    var hue: CGFloat = 0
+                    var saturation: CGFloat = 0
+                    var br: CGFloat = 0
+                    var alpha: CGFloat = 0
+                    UIColor(selectedColor).getHue(&hue, saturation: &saturation, brightness: &br, alpha: &alpha)
+                    let hueInt = Int(hue * 360)
+                    let saturationInt = Int(saturation * 255)
+                    if let color = await NetworkManager.setColor(hue: hueInt, saturation: saturationInt) {
                         msg += "Color set: Hue \(color.hue), Saturation \(color.saturation). "
                     } else {
                         msg += "Color update failed. "
@@ -70,6 +68,13 @@ struct ControlView: View {
         .navigationTitle("Control LED")
         .task {
             ledStatus = await NetworkManager.fetchLEDStatus()
+            if let status = ledStatus {
+                selectedColor = Color(
+                    hue: Double(status.hue) / 360.0,
+                    saturation: Double(status.saturation) / 255.0,
+                    brightness: 1.0
+                )
+            }
         }
     }
 }

@@ -10,7 +10,7 @@ struct LEDStatus: Decodable {
 
 struct NetworkManager {
     static func fetchLEDStatus() async -> LEDStatus? {
-        guard let url = URL(string: "http://4827E2662CF8.local/api/status") else { return nil }
+        guard let url = URL(string: "http://24587CEB4834.local/api/status") else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
             return try JSONDecoder().decode(LEDStatus.self, from: data)
@@ -26,7 +26,7 @@ struct NetworkManager {
         let power: Bool
     }
     static func setPower(_ power: Bool) async -> Bool? {
-        guard let url = URL(string: "http://4827E2662CF8.local/api/power") else { return nil }
+        guard let url = URL(string: "http://24587CEB4834.local/api/power") else { return nil }
         let payload = ["power": power]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         var request = URLRequest(url: url)
@@ -48,7 +48,7 @@ struct NetworkManager {
         let brightness: Int
     }
     static func setBrightness(_ brightness: Int) async -> Int? {
-        guard let url = URL(string: "http://4827E2662CF8.local/api/brightness") else { return nil }
+        guard let url = URL(string: "http://24587CEB4834.local/api/brightness") else { return nil }
         let payload = ["brightness": brightness]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         var request = URLRequest(url: url)
@@ -71,7 +71,7 @@ struct NetworkManager {
         let saturation: Int
     }
     static func setColor(hue: Int, saturation: Int) async -> (hue: Int, saturation: Int)? {
-        guard let url = URL(string: "http://4827E2662CF8.local/api/color") else { return nil }
+        guard let url = URL(string: "http://24587CEB4834.local/api/color") else { return nil }
         let payload = ["hue": hue, "saturation": saturation]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         var request = URLRequest(url: url)
@@ -93,7 +93,7 @@ struct NetworkManager {
         let adaptive_mode: Bool
     }
     static func setAdaptiveMode(_ mode: Bool) async -> Bool? {
-        guard let url = URL(string: "http://4827E2662CF8.local/api/adaptive_mode") else { return nil }
+        guard let url = URL(string: "http://24587CEB4834.local/api/adaptive_mode") else { return nil }
         let payload = ["adaptive_mode": mode]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         var request = URLRequest(url: url)
