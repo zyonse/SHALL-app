@@ -5,7 +5,7 @@ struct LEDStatus: Decodable {
     var brightness: Int
     var hue: Int
     var saturation: Int
-    var adaptive_mode: Bool
+    var mode: String
 }
 
 struct NetworkManager {
@@ -13,9 +13,10 @@ struct NetworkManager {
         guard let url = URL(string: "\(AppSettings.shared.baseURL)/api/status") else { return nil }
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            return try JSONDecoder().decode(LEDStatus.self, from: data)
+            let decoder = JSONDecoder()
+            return try decoder.decode(LEDStatus.self, from: data)
         } catch {
-            // handle error
+            print("Error fetching status: \(error)")
             return nil
         }
     }
@@ -87,14 +88,14 @@ struct NetworkManager {
         }
     }
     
-    // Set adaptive mode
-    struct AdaptiveModeResponse: Decodable {
+    // Set mode
+    struct ModeResponse: Decodable {
         let success: Bool
-        let adaptive_mode: Bool
+        let mode: String
     }
-    static func setAdaptiveMode(_ mode: Bool) async -> Bool? {
-        guard let url = URL(string: "\(AppSettings.shared.baseURL)/api/adaptive_mode") else { return nil }
-        let payload = ["adaptive_mode": mode]
+    static func setMode(_ mode: String) async -> String? {
+        guard let url = URL(string: "\(AppSettings.shared.baseURL)/api/mode") else { return nil }
+        let payload = ["mode": mode]
         guard let data = try? JSONSerialization.data(withJSONObject: payload) else { return nil }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -102,9 +103,10 @@ struct NetworkManager {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         do {
             let (data, _) = try await URLSession.shared.data(for: request)
-            let response = try JSONDecoder().decode(AdaptiveModeResponse.self, from: data)
-            return response.adaptive_mode
+            let response = try JSONDecoder().decode(ModeResponse.self, from: data)
+            return response.mode
         } catch {
+            print("Error setting mode: \(error)") // Added error logging
             return nil
         }
     }
