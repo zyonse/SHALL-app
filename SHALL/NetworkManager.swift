@@ -8,7 +8,50 @@ struct LEDStatus: Decodable {
     var mode: String
 }
 
+// MARK: - Spotify Structures
+struct SpotifyTokenResponse: Decodable {
+    let access_token: String
+    let token_type: String
+    let expires_in: Int
+}
+
+struct SpotifyImage: Decodable {
+    let url: String
+    let height: Int?
+    let width: Int?
+}
+
+struct SpotifyArtist: Decodable {
+    let name: String
+}
+
+struct SpotifyAlbum: Decodable {
+    let name: String
+    let images: [SpotifyImage]
+}
+
+struct SpotifyTrack: Decodable, Identifiable {
+    let id: String
+    let name: String
+    let artists: [SpotifyArtist]
+    let album: SpotifyAlbum
+    var preview_url: String? // Optional: Some tracks might not have previews
+}
+
 struct NetworkManager {
+    // --- Spotify Credentials ---
+    private static let spotifyClientId = ""
+    private static let spotifyClientSecret = ""
+    // Predefined list of Track IDs
+    static let predefinedTrackIds = [
+        "0VjIjW4GlUZAMYd2vXMi3b", // Blinding Lights - The Weeknd
+        "7tFiyTwD0nx5a1eklYtX2J", // Bohemian Rhapsody - Queen
+        "4r6eNCsrZnQWJzzvFh4nlg", // Take On Me - a-ha
+        "2takcwOaAZWiXQijPHIx7B", // Africa - TOTO
+        "6ZG5lRT77aJ3btmArcykra"  // Levitating - Dua Lipa
+    ]
+    // -----------------------------------------------------------------
+
     static func fetchLEDStatus() async -> LEDStatus? {
         guard let url = URL(string: "\(AppSettings.shared.baseURL)/api/status") else { return nil }
         do {
@@ -109,5 +152,92 @@ struct NetworkManager {
             print("Error setting mode: \(error)") // Added error logging
             return nil
         }
+    }
+
+    // MARK: - Spotify API Calls
+
+    // Get Spotify Access Token (Client Credentials Flow)
+    static func getSpotifyAccessToken() async -> String? {
+        guard let url = URL(string: "https://accounts.spotify.com/api/token") else { return nil }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+
+        let credentials = "\(spotifyClientId):\(spotifyClientSecret)"
+        guard let credentialsData = credentials.data(using: .utf8) else { return nil }
+        let base64Credentials = credentialsData.base64EncodedString()
+
+        request.addValue("Basic \(base64Credentials)", forHTTPHeaderField: "Authorization")
+        request.addValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.httpBody = "grant_type=client_credentials".data(using: .utf8)
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                print("Spotify Auth Error: Status code \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                if let errorData = String(data: data, encoding: .utf8) { print(errorData) }
+                return nil
+            }
+            let tokenResponse = try JSONDecoder().decode(SpotifyTokenResponse.self, from: data)
+            return tokenResponse.access_token
+        } catch {
+            print("Error fetching Spotify token: \(error)")
+            return nil
+        }
+    }
+
+    // Fetch Details for a Single Spotify Track
+    static func fetchSpotifyTrackDetails(trackId: String, accessToken: String) async -> SpotifyTrack? {
+        var components = URLComponents()
+        components.scheme = "https"
+        components.host = "api.spotify.com"
+        components.path = "/v1/tracks/\(trackId)"
+        // No query items needed for basic track details
+
+        guard let url = components.url else {
+            print("Error constructing Spotify track details URL")
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.addValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+                 print("Spotify Track Details Error: Status code \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+                 if let errorData = String(data: data, encoding: .utf8) { print(errorData) }
+                return nil
+            }
+            // Decode directly into SpotifyTrack
+            let track = try JSONDecoder().decode(SpotifyTrack.self, from: data)
+            return track
+        } catch {
+            print("Error fetching Spotify track details: \(error)")
+            return nil
+        }
+    }
+
+    // Fetch Details for Multiple Spotify Tracks by ID
+    static func fetchMultipleSpotifyTrackDetails(trackIds: [String], accessToken: String) async -> [SpotifyTrack] {
+        var fetchedTracks: [SpotifyTrack] = []
+        // Use a TaskGroup for concurrent fetching
+        await withTaskGroup(of: SpotifyTrack?.self) { group in
+            for trackId in trackIds {
+                group.addTask {
+                    // Call the existing single track fetch function
+                    return await fetchSpotifyTrackDetails(trackId: trackId, accessToken: accessToken)
+                }
+            }
+            // Collect results from the group
+            for await track in group {
+                if let track = track {
+                    fetchedTracks.append(track)
+                }
+            }
+        }
+        // Note: The order might not be preserved due to concurrency.
+        // If order matters, you might need to sort fetchedTracks based on the original trackIds array.
+        return fetchedTracks
     }
 }
