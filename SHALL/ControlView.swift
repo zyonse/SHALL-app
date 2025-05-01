@@ -18,12 +18,9 @@ enum LEDMode: String, CaseIterable, Identifiable {
 struct ControlView: View {
     @State private var power: Bool = false
     @State private var brightness: Double = 128
-    @State private var selectedMode: LEDMode = .manual
-    @State private var statusMessage: String = ""
-    @State private var ledStatus: LEDStatus?
     @State private var selectedColor: Color = .white
-
-    // MARK: - Spotify State
+    @State private var selectedMode: LEDMode = .manual
+    @State private var ledStatus: LEDStatus?
     @State private var spotifyAccessToken: String?
     @State private var spotifyTracks: [SpotifyTrack] = []
     @State private var spotifyStatusMessage: String = "Loading Spotify tracks..."
@@ -32,70 +29,67 @@ struct ControlView: View {
         Form {
             // MARK: - LED Control Section
             Section("LED Control") {
+                // Power toggle applies immediately
                 Toggle("Power", isOn: $power)
-                    .onChange(of: power) { _, newValue in
-                        // Optionally apply power change immediately
-                        // Task { await applyPower(newValue) }
+                    .onChange(of: power) { oldValue, newValue in
+                        Task {
+                            if let confirmed = await NetworkManager.setPower(newValue) {
+                                power = confirmed
+                            } else {
+                                power = oldValue
+                            }
+                        }
                     }
-                
+
+                // Brightness slider applies on release
                 VStack(alignment: .leading) {
                     Text("Brightness: \(Int(brightness))")
-                    Slider(value: $brightness, in: 0...255, step: 1)
+                    Slider(value: $brightness, in: 0...255, step: 1) {
+                        // onEditingChanged: true when user starts, false when ends
+                    } onEditingChanged: { isEditing in
+                        if !isEditing {
+                            let old = Int(brightness)
+                            Task {
+                                if let confirmed = await NetworkManager.setBrightness(old) {
+                                    brightness = Double(confirmed)
+                                } else {
+                                    brightness = Double(old) // revert to last known
+                                }
+                            }
+                        }
+                    }
                 }
-                
+
+                // Color picker applies on change (no longer overwrite local color)
                 ColorPicker("Color", selection: $selectedColor)
-                
+                    .onChange(of: selectedColor) { _, newValue in
+                        let ui = UIColor(newValue)
+                        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+                        ui.getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+                        let hueInt = Int(h * 360), satInt = Int(s * 255)
+                        Task {
+                            _ = await NetworkManager.setColor(hue: hueInt, saturation: satInt)
+                            // no local state update here
+                        }
+                    }
+
+                // Mode picker applies on change
                 Picker("Mode", selection: $selectedMode) {
                     ForEach(LEDMode.allCases) { mode in
                         Text(mode.rawValue.capitalized).tag(mode)
                     }
                 }
                 .pickerStyle(.segmented)
-                
-                Button("Apply All Changes") {
+                .onChange(of: selectedMode) { oldValue, newValue in
                     Task {
-                        var msg = ""
-                        // Power
-                        if let newPower = await NetworkManager.setPower(power) {
-                            msg += "Power set to \(newPower ? "On" : "Off"). "
+                        if let confirmed = await NetworkManager.setMode(newValue.rawValue),
+                           let mode = LEDMode(rawValue: confirmed) {
+                            selectedMode = mode
                         } else {
-                            msg += "Power update failed. "
+                            selectedMode = oldValue
                         }
-                        // Brightness
-                        if let newBrightness = await NetworkManager.setBrightness(Int(brightness)) {
-                            msg += "Brightness set to \(newBrightness). "
-                        } else {
-                            msg += "Brightness update failed. "
-                        }
-                        // Color
-                        var hue: CGFloat = 0
-                        var saturation: CGFloat = 0
-                        var br: CGFloat = 0
-                        var alpha: CGFloat = 0
-                        UIColor(selectedColor).getHue(&hue, saturation: &saturation, brightness: &br, alpha: &alpha)
-                        let hueInt = Int(hue * 360)
-                        let saturationInt = Int(saturation * 255)
-                        if let color = await NetworkManager.setColor(hue: hueInt, saturation: saturationInt) {
-                            msg += "Color set: Hue \(color.hue), Saturation \(color.saturation). "
-                        } else {
-                            msg += "Color update failed. "
-                        }
-                        // Mode
-                        if let newMode = await NetworkManager.setMode(selectedMode.rawValue) {
-                            msg += "Mode set to \(newMode.capitalized). "
-                            if let confirmedMode = LEDMode(rawValue: newMode) {
-                                selectedMode = confirmedMode
-                            }
-                        } else {
-                            msg += "Mode update failed. "
-                        }
-                        statusMessage = msg
                     }
                 }
-                
-                Text(statusMessage)
-                    .foregroundColor(.secondary)
-                    .lineLimit(nil)
             }
 
             // MARK: - Spotify Tracks Section (Predefined List)
@@ -140,7 +134,7 @@ struct ControlView: View {
                 }
             }
         }
-        .navigationTitle("Control & Music")
+        .navigationTitle("Control LED")
         .task {
             await loadInitialStatus()
             await loadSpotifyData()
@@ -158,9 +152,6 @@ struct ControlView: View {
                 brightness: 1.0
             )
             selectedMode = LEDMode(rawValue: status.mode) ?? .manual
-            statusMessage = "Current status loaded."
-        } else {
-            statusMessage = "Failed to load initial status."
         }
     }
 
@@ -189,34 +180,19 @@ struct ControlView: View {
     // MARK: - Album Art Color Logic (Accepts Track Parameter)
     private func setColorFromAlbumArt(track: SpotifyTrack) async {
         guard let imageUrlString = track.album.images.first?.url,
-              let imageUrl = URL(string: imageUrlString) else {
-            statusMessage = "No album art URL found for \(track.name)."
+              let imageUrl = URL(string: imageUrlString),
+              let averageUIColor = await getAverageColor(from: imageUrl) else {
             return
         }
 
-        statusMessage = "Analyzing album art for \(track.name)..."
-
-        guard let averageUIColor = await getAverageColor(from: imageUrl) else {
-            statusMessage = "Failed to analyze album art color."
-            return
-        }
-
-        var hue: CGFloat = 0
-        var saturation: CGFloat = 0
-        var brightness: CGFloat = 0
-        var alpha: CGFloat = 0
+        var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
         averageUIColor.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
 
         let hueInt = Int(hue * 360)
         let saturationInt = Int(max(0.1, saturation) * 255)
 
-        statusMessage = "Setting color to Hue: \(hueInt), Sat: \(saturationInt)..."
-
-        if let color = await NetworkManager.setColor(hue: hueInt, saturation: saturationInt) {
-            statusMessage = "Color set from \(track.name): Hue \(color.hue), Sat \(color.saturation)."
-        } else {
-            statusMessage = "Failed to set color from album art."
-        }
+        // send new color, but do not overwrite selectedColor
+        _ = await NetworkManager.setColor(hue: hueInt, saturation: saturationInt)
     }
 
     // Helper function to get average color from an image URL
