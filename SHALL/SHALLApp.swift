@@ -10,15 +10,17 @@ import SwiftUI
 @main
 struct SHALLApp: App {
     var body: some Scene {
-        // Tabbed view with main control tab and settings tab
         WindowGroup {
             TabView {
-                Tab("Controls", systemImage: "lightbulb.max") {
-                    ControlView()
-                }
-                Tab("Settings", systemImage: "gear") {
-                    SettingsView()
-                }
+                ControlView()
+                    .tabItem {
+                        Label("Controls", systemImage: "lightbulb")
+                    }
+
+                SettingsView()
+                    .tabItem {
+                        Label("Settings", systemImage: "gear")
+                    }
             }
         }
     }
