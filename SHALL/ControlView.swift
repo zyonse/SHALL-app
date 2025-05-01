@@ -43,21 +43,30 @@ struct ControlView: View {
 
                 // Brightness slider applies on release
                 VStack(alignment: .leading) {
-                    Text("Brightness: \(Int(brightness))")
-                    Slider(value: $brightness, in: 0...255, step: 1) {
-                        // onEditingChanged: true when user starts, false when ends
-                    } onEditingChanged: { isEditing in
-                        if !isEditing {
-                            let old = Int(brightness)
-                            Task {
-                                if let confirmed = await NetworkManager.setBrightness(old) {
-                                    brightness = Double(confirmed)
-                                } else {
-                                    brightness = Double(old) // revert to last known
+                    HStack {
+                        Image(systemName: "sun.min.fill")
+                            .foregroundColor(.gray)
+                        Slider(value: $brightness, in: 0...255, step: 1) {
+                            // onEditingChanged: true when user starts, false when ends
+                        } onEditingChanged: { isEditing in
+                            if !isEditing {
+                                let old = Int(brightness)
+                                Task {
+                                    if let confirmed = await NetworkManager.setBrightness(old) {
+                                        brightness = Double(confirmed)
+                                    } else {
+                                        brightness = Double(old) // revert to last known
+                                    }
                                 }
                             }
                         }
+                        .tint(.yellow)  // apply yellow accent
+                        Image(systemName: "sun.max.fill")
+                            .foregroundColor(.yellow)
                     }
+                    Text("Brightness: \(Int(brightness))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
 
                 // Color picker applies on change (no longer overwrite local color)
