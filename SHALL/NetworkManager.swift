@@ -44,11 +44,9 @@ struct NetworkManager {
     private static let spotifyClientSecret = ""
     // Predefined list of Track IDs
     static let predefinedTrackIds = [
-        "0VjIjW4GlUZAMYd2vXMi3b", // Blinding Lights - The Weeknd
         "7tFiyTwD0nx5a1eklYtX2J", // Bohemian Rhapsody - Queen
-        "4r6eNCsrZnQWJzzvFh4nlg", // Take On Me - a-ha
-        "2takcwOaAZWiXQijPHIx7B", // Africa - TOTO
-        "6ZG5lRT77aJ3btmArcykra"  // Levitating - Dua Lipa
+        "6nEkxYIEnrbYH7h1hJ8Xn6", // She Loves You - The Beatles
+        "3Y1EvIgEVw51XtgNEgpz5c", // Von dutch - Charli xcx
     ]
     // -----------------------------------------------------------------
 
