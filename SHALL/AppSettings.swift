@@ -2,7 +2,7 @@ import SwiftUI
 
 class AppSettings: ObservableObject {
     // Default MAC address can be empty or a placeholder
-    @AppStorage("deviceMacAddress") var macAddress: String = "24587CEB4834"
+    @AppStorage("deviceMacAddress") var macAddress: String = "24587CEB48C0"
     
     static let shared = AppSettings()
     
